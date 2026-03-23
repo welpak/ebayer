@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!--
+            Top-level eBay menu.
+            sequence=75 places it between Sales (50) and Inventory (80)
+            in a typical Odoo 16 Community installation.
+        -->
+        <menuitem id="menu_ebay_root"
+                  name="eBay"
+                  sequence="75"
+                  web_icon="ebay_connector,static/description/icon.png"/>
+
+        <!-- ============================================================
+             Main Operational Menus
+        ============================================================ -->
+
+        <!-- Orders -->
+        <menuitem id="menu_ebay_orders"
+                  name="Orders"
+                  parent="menu_ebay_root"
+                  sequence="10"
+                  action="action_ebay_order"/>
+
+        <!-- Product Mappings -->
+        <menuitem id="menu_ebay_products"
+                  name="Product Mappings"
+                  parent="menu_ebay_root"
+                  sequence="20"
+                  action="action_ebay_product_mapping"/>
+
+        <!-- ============================================================
+             Configuration Sub-menu
+        ============================================================ -->
+        <menuitem id="menu_ebay_configuration"
+                  name="Configuration"
+                  parent="menu_ebay_root"
+                  sequence="90"
+                  groups="base.group_system"/>
+
+        <!-- eBay Instances -->
+        <menuitem id="menu_ebay_instances"
+                  name="eBay Instances"
+                  parent="menu_ebay_configuration"
+                  sequence="10"
+                  action="action_ebay_instance"
+                  groups="base.group_system"/>
+
+        <!-- Settings (opens the Odoo Settings page; eBay section is
+             highlighted via the search term passed in context) -->
+        <menuitem id="menu_ebay_settings"
+                  name="Settings"
+                  parent="menu_ebay_configuration"
+                  sequence="90"
+                  action="base_setup.action_general_configuration"
+                  groups="base.group_system"/>
+
+    </data>
+</odoo>

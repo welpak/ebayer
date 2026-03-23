@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ebay_instance_admin,ebay.instance admin,model_ebay_instance,base.group_system,1,1,1,1
+access_ebay_instance_user,ebay.instance user,model_ebay_instance,base.group_user,1,0,0,0
+access_ebay_order_admin,ebay.order admin,model_ebay_order,base.group_system,1,1,1,1
+access_ebay_order_user,ebay.order user,model_ebay_order,base.group_user,1,0,0,0
+access_ebay_product_mapping_admin,ebay.product.mapping admin,model_ebay_product_mapping,base.group_system,1,1,1,1
+access_ebay_product_mapping_user,ebay.product.mapping user,model_ebay_product_mapping,base.group_user,1,0,0,0

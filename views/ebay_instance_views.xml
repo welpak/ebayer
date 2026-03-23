@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================
+             LIST VIEW
+        ============================================================ -->
+        <record id="view_ebay_instance_tree" model="ir.ui.view">
+            <field name="name">ebay.instance.tree</field>
+            <field name="model">ebay.instance</field>
+            <field name="arch" type="xml">
+                <tree string="eBay Instances"
+                      decoration-muted="active == False">
+                    <field name="name"/>
+                    <field name="environment"
+                           decoration-info="environment == 'sandbox'"
+                           decoration-success="environment == 'production'"/>
+                    <field name="app_id"/>
+                    <field name="connection_status"
+                           widget="badge"
+                           decoration-success="connection_status == 'connected'"
+                           decoration-danger="connection_status == 'error'"
+                           decoration-secondary="connection_status == 'not_connected'"/>
+                    <field name="enable_batch_sync" string="Batch Sync"/>
+                    <field name="enable_instant_sync" string="Instant Sync"/>
+                    <field name="token_expires_at" string="Token Expires"/>
+                    <field name="active" invisible="1"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             FORM VIEW
+        ============================================================ -->
+        <record id="view_ebay_instance_form" model="ir.ui.view">
+            <field name="name">ebay.instance.form</field>
+            <field name="model">ebay.instance</field>
+            <field name="arch" type="xml">
+                <form string="eBay Instance">
+                    <sheet>
+                        <!-- Smart-button bar — populated by Phase 3 -->
+                        <div class="oe_button_box" name="button_box"/>
+
+                        <!-- Title -->
+                        <widget name="web_ribbon"
+                                title="Archived"
+                                bg_color="bg-danger"
+                                attrs="{'invisible': [('active', '=', True)]}"/>
+                        <div class="oe_title">
+                            <label for="name" string="Instance Name"/>
+                            <h1>
+                                <field name="name"
+                                       placeholder="e.g. My eBay Shop — Production"/>
+                            </h1>
+                        </div>
+
+                        <!-- Top-level status & toggles -->
+                        <group>
+                            <group string="General">
+                                <field name="environment"/>
+                                <field name="connection_status"
+                                       widget="badge"
+                                       decoration-success="connection_status == 'connected'"
+                                       decoration-danger="connection_status == 'error'"
+                                       decoration-secondary="connection_status == 'not_connected'"/>
+                                <field name="active"
+                                       widget="boolean_toggle"/>
+                            </group>
+                            <group string="Synchronisation">
+                                <field name="enable_instant_sync"
+                                       widget="boolean_toggle"/>
+                                <field name="enable_batch_sync"
+                                       widget="boolean_toggle"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <!-- Page 1: Application Keys -->
+                            <page string="API Credentials" name="credentials">
+                                <group>
+                                    <group string="Application Keys">
+                                        <field name="app_id"
+                                               placeholder="YOURNAME-XXXX-XXXX-XXXX"/>
+                                        <field name="dev_id"
+                                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+                                        <field name="cert_id"
+                                               password="True"
+                                               placeholder="••••••••••••"/>
+                                    </group>
+                                    <group string="OAuth 2.0 Tokens">
+                                        <field name="access_token"
+                                               password="True"
+                                               placeholder="OAuth access token (set via authorization flow)"/>
+                                        <field name="refresh_token"
+                                               password="True"
+                                               placeholder="OAuth refresh token (set via authorization flow)"/>
+                                        <field name="token_expires_at"/>
+                                        <field name="is_token_expired"
+                                               readonly="1"
+                                               attrs="{'invisible': [('access_token', 'in', [False, ''])]}"/>
+                                    </group>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             SEARCH VIEW
+        ============================================================ -->
+        <record id="view_ebay_instance_search" model="ir.ui.view">
+            <field name="name">ebay.instance.search</field>
+            <field name="model">ebay.instance</field>
+            <field name="arch" type="xml">
+                <search string="Search eBay Instances">
+                    <field name="name" string="Instance Name"/>
+                    <field name="app_id" string="App ID"/>
+                    <separator/>
+                    <filter name="filter_connected"
+                            string="Connected"
+                            domain="[('connection_status', '=', 'connected')]"/>
+                    <filter name="filter_sandbox"
+                            string="Sandbox"
+                            domain="[('environment', '=', 'sandbox')]"/>
+                    <filter name="filter_production"
+                            string="Production"
+                            domain="[('environment', '=', 'production')]"/>
+                    <separator/>
+                    <filter name="filter_active"
+                            string="Active"
+                            domain="[('active', '=', True)]"/>
+                    <filter name="filter_archived"
+                            string="Archived"
+                            domain="[('active', '=', False)]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_environment"
+                                string="Environment"
+                                context="{'group_by': 'environment'}"/>
+                        <filter name="group_connection"
+                                string="Connection Status"
+                                context="{'group_by': 'connection_status'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             WINDOW ACTION
+        ============================================================ -->
+        <record id="action_ebay_instance" model="ir.actions.act_window">
+            <field name="name">eBay Instances</field>
+            <field name="res_model">ebay.instance</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'search_default_filter_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first eBay instance
+                </p>
+                <p>
+                    Add your eBay Developer application credentials here.
+                    Each record represents one eBay seller account.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>
