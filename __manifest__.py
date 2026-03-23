@@ -29,6 +29,12 @@ Features:
     ],
     'data': [
         'security/ir.model.access.csv',
+        'data/ir_cron.xml',
+        'views/ebay_instance_views.xml',
+        'views/ebay_order_views.xml',
+        'views/ebay_product_views.xml',
+        'views/res_config_settings_views.xml',
+        'views/menu_views.xml',
     ],
     'demo': [],
     'installable': True,

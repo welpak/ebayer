@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================
+             LIST VIEW
+        ============================================================ -->
+        <record id="view_ebay_order_tree" model="ir.ui.view">
+            <field name="name">ebay.order.tree</field>
+            <field name="model">ebay.order</field>
+            <field name="arch" type="xml">
+                <tree string="eBay Orders"
+                      decoration-danger="sync_status == 'error'"
+                      decoration-success="sync_status == 'synced'"
+                      decoration-muted="order_status == 'cancelled'">
+                    <field name="ebay_order_id" string="eBay Order ID"/>
+                    <field name="instance_id" string="Instance"/>
+                    <field name="order_date" string="Order Date"/>
+                    <field name="buyer_username" string="Buyer"/>
+                    <field name="order_status"
+                           decoration-warning="order_status in ('pending', 'awaiting_payment', 'in_checkout')"
+                           decoration-success="order_status in ('paid', 'completed')"
+                           decoration-info="order_status == 'shipped'"
+                           decoration-danger="order_status == 'cancelled'"/>
+                    <field name="total_amount" string="Total"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="sync_status"
+                           widget="badge"
+                           decoration-success="sync_status == 'synced'"
+                           decoration-warning="sync_status == 'pending'"
+                           decoration-danger="sync_status == 'error'"
+                           decoration-secondary="sync_status == 'cancelled'"/>
+                    <field name="fulfillment_status"
+                           widget="badge"
+                           decoration-success="fulfillment_status == 'fulfilled'"
+                           decoration-warning="fulfillment_status == 'in_progress'"
+                           decoration-secondary="fulfillment_status == 'not_started'"/>
+                    <field name="odoo_order_id" string="Sale Order" optional="show"/>
+                    <field name="last_sync_date" string="Last Synced" optional="show"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             FORM VIEW
+        ============================================================ -->
+        <record id="view_ebay_order_form" model="ir.ui.view">
+            <field name="name">ebay.order.form</field>
+            <field name="model">ebay.order</field>
+            <field name="arch" type="xml">
+                <form string="eBay Order">
+                    <header>
+                        <field name="sync_status"
+                               widget="statusbar"
+                               statusbar_visible="pending,synced,error"/>
+                    </header>
+                    <sheet>
+                        <!-- Smart-button bar — populated by Phase 3 -->
+                        <div class="oe_button_box" name="button_box">
+                            <button name="%(sale.action_quotations_with_onboarding)d"
+                                    type="action"
+                                    class="oe_stat_button"
+                                    icon="fa-dollar"
+                                    attrs="{'invisible': [('odoo_order_id', '=', False)]}">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_text">Sale Order</span>
+                                    <field name="odoo_order_id" class="o_stat_value"
+                                           readonly="1"/>
+                                </div>
+                            </button>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="oe_title">
+                            <label for="ebay_order_id" string="eBay Order"/>
+                            <h1>
+                                <field name="ebay_order_id"
+                                       readonly="1"
+                                       placeholder="eBay Order ID"/>
+                            </h1>
+                        </div>
+
+                        <!-- Main fields -->
+                        <group>
+                            <group string="Order Details">
+                                <field name="instance_id"/>
+                                <field name="odoo_order_id"/>
+                                <field name="order_date"/>
+                                <field name="order_status"/>
+                                <field name="total_amount"/>
+                                <field name="currency_id"
+                                       groups="base.group_multi_currency"/>
+                            </group>
+                            <group string="Buyer">
+                                <field name="buyer_username"/>
+                                <field name="buyer_email"/>
+                            </group>
+                        </group>
+
+                        <group string="Synchronisation">
+                            <group>
+                                <field name="sync_status"/>
+                                <field name="fulfillment_status"/>
+                                <field name="last_sync_date" readonly="1"/>
+                            </group>
+                            <group>
+                                <field name="sync_error_message"
+                                       readonly="1"
+                                       attrs="{'invisible': [('sync_status', '!=', 'error')]}"
+                                       widget="text"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             SEARCH VIEW
+        ============================================================ -->
+        <record id="view_ebay_order_search" model="ir.ui.view">
+            <field name="name">ebay.order.search</field>
+            <field name="model">ebay.order</field>
+            <field name="arch" type="xml">
+                <search string="Search eBay Orders">
+                    <field name="ebay_order_id" string="eBay Order ID"/>
+                    <field name="buyer_username" string="Buyer"/>
+                    <field name="buyer_email" string="Email"/>
+                    <field name="odoo_order_id" string="Sale Order"/>
+                    <field name="instance_id" string="Instance"/>
+                    <separator/>
+                    <!-- Sync status filters -->
+                    <filter name="filter_pending_sync"
+                            string="Pending Sync"
+                            domain="[('sync_status', '=', 'pending')]"/>
+                    <filter name="filter_sync_error"
+                            string="Sync Errors"
+                            domain="[('sync_status', '=', 'error')]"/>
+                    <filter name="filter_synced"
+                            string="Synced"
+                            domain="[('sync_status', '=', 'synced')]"/>
+                    <separator/>
+                    <!-- Order status filters -->
+                    <filter name="filter_paid"
+                            string="Paid"
+                            domain="[('order_status', '=', 'paid')]"/>
+                    <filter name="filter_shipped"
+                            string="Shipped"
+                            domain="[('order_status', '=', 'shipped')]"/>
+                    <filter name="filter_cancelled"
+                            string="Cancelled"
+                            domain="[('order_status', '=', 'cancelled')]"/>
+                    <separator/>
+                    <!-- Fulfillment filters -->
+                    <filter name="filter_unfulfilled"
+                            string="Not Fulfilled"
+                            domain="[('fulfillment_status', '=', 'not_started')]"/>
+                    <separator/>
+                    <!-- Date filters -->
+                    <filter name="filter_today"
+                            string="Today"
+                            domain="[('order_date', '&gt;=', context_today().strftime('%%Y-%%m-%%d 00:00:00')),
+                                     ('order_date', '&lt;=', context_today().strftime('%%Y-%%m-%%d 23:59:59'))]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_instance"
+                                string="Instance"
+                                context="{'group_by': 'instance_id'}"/>
+                        <filter name="group_order_status"
+                                string="Order Status"
+                                context="{'group_by': 'order_status'}"/>
+                        <filter name="group_sync_status"
+                                string="Sync Status"
+                                context="{'group_by': 'sync_status'}"/>
+                        <filter name="group_order_date"
+                                string="Order Date"
+                                context="{'group_by': 'order_date:day'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- ============================================================
+             WINDOW ACTION
+        ============================================================ -->
+        <record id="action_ebay_order" model="ir.actions.act_window">
+            <field name="name">eBay Orders</field>
+            <field name="res_model">ebay.order</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'search_default_filter_pending_sync': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No eBay orders yet
+                </p>
+                <p>
+                    Enable Batch Sync or Instant Sync in
+                    <strong>eBay ▸ Configuration ▸ Settings</strong>
+                    to start importing orders from eBay automatically.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>
