@@ -23,7 +23,7 @@
                            decoration-success="listing_status == 'active'"
                            decoration-danger="listing_status == 'ended'"
                            decoration-warning="listing_status == 'out_of_stock'"
-                           decoration-secondary="listing_status == 'unknown'"/>
+                           decoration-muted="listing_status == 'unknown'"/>
                     <field name="sync_inventory"
                            string="Sync Stock"
                            widget="boolean_toggle"/>
@@ -79,7 +79,7 @@
                                        decoration-success="listing_status == 'active'"
                                        decoration-danger="listing_status == 'ended'"
                                        decoration-warning="listing_status == 'out_of_stock'"
-                                       decoration-secondary="listing_status == 'unknown'"/>
+                                       decoration-muted="listing_status == 'unknown'"/>
                                 <field name="ebay_quantity"/>
                             </group>
                         </group>

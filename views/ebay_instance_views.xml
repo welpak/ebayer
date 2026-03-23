@@ -20,7 +20,7 @@
                            widget="badge"
                            decoration-success="connection_status == 'connected'"
                            decoration-danger="connection_status == 'error'"
-                           decoration-secondary="connection_status == 'not_connected'"/>
+                           decoration-muted="connection_status == 'not_connected'"/>
                     <field name="enable_batch_sync" string="Batch Sync"/>
                     <field name="enable_instant_sync" string="Instant Sync"/>
                     <field name="token_expires_at" string="Token Expires"/>
@@ -62,7 +62,7 @@
                                        widget="badge"
                                        decoration-success="connection_status == 'connected'"
                                        decoration-danger="connection_status == 'error'"
-                                       decoration-secondary="connection_status == 'not_connected'"/>
+                                       decoration-muted="connection_status == 'not_connected'"/>
                                 <field name="active"
                                        widget="boolean_toggle"/>
                             </group>

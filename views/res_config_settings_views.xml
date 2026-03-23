@@ -57,7 +57,7 @@
                                                widget="badge"
                                                decoration-success="ebay_connection_status == 'connected'"
                                                decoration-danger="ebay_connection_status == 'error'"
-                                               decoration-secondary="ebay_connection_status == 'not_connected'"/>
+                                               decoration-muted="ebay_connection_status == 'not_connected'"/>
                                     </div>
                                 </div>
                             </div>
