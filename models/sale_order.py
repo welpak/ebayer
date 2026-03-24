@@ -80,6 +80,26 @@ class SaleOrder(models.Model):
     )
 
     # ------------------------------------------------------------------
+    # Smart-button action: open linked ebay.order record
+    # ------------------------------------------------------------------
+
+    def action_view_ebay_order(self):
+        """Open the ebay.order record linked to this sale order."""
+        self.ensure_one()
+        tracker = self.env['ebay.order'].search([
+            ('ebay_order_id', '=', self.ebay_order_id),
+        ], limit=1)
+        if not tracker:
+            return {'type': 'ir.actions.act_window_close'}
+        return {
+            'type':      'ir.actions.act_window',
+            'res_model': 'ebay.order',
+            'res_id':    tracker.id,
+            'view_mode': 'form',
+            'target':    'current',
+        }
+
+    # ------------------------------------------------------------------
     # Main entry point: create or retrieve the Odoo SO for an eBay order
     # ------------------------------------------------------------------
 

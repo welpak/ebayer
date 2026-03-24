@@ -3,7 +3,7 @@
     <data>
 
         <!-- ============================================================
-             sale.order form — inject eBay panel into the Other Info tab
+             sale.order form — eBay smart button + dedicated eBay tab
         ============================================================ -->
         <record id="view_sale_order_form_ebay_connector" model="ir.ui.view">
             <field name="name">sale.order.form.inherit.ebay_connector</field>
@@ -11,10 +11,10 @@
             <field name="inherit_id" ref="sale.view_order_form"/>
             <field name="arch" type="xml">
 
-                <!-- eBay smart button in the stat-button area -->
+                <!-- Stat button — only visible when the order came from eBay -->
                 <xpath expr="//div[@name='button_box']" position="inside">
-                    <button name="%(ebay_connector.action_ebay_order)d"
-                            type="action"
+                    <button name="action_view_ebay_order"
+                            type="object"
                             class="oe_stat_button"
                             icon="fa-tag"
                             attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
@@ -27,22 +27,27 @@
                     </button>
                 </xpath>
 
-                <!-- eBay fields in the Other Info tab -->
-                <xpath expr="//page[@name='other_info']" position="inside">
-                    <group string="eBay"
-                           attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
+                <!-- Append a dedicated eBay page at the end of the notebook.
+                     Using position="inside" on //notebook avoids any dependency
+                     on specific page names in the base sale.order form. -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="eBay"
+                          name="ebay_connector"
+                          attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
                         <group>
-                            <field name="ebay_order_id" readonly="1"/>
-                            <field name="ebay_instance_id" readonly="1"/>
+                            <group string="eBay Reference">
+                                <field name="ebay_order_id" readonly="1"/>
+                                <field name="ebay_instance_id" readonly="1"/>
+                            </group>
                         </group>
-                    </group>
+                    </page>
                 </xpath>
 
             </field>
         </record>
 
         <!-- ============================================================
-             product.template form — eBay listings smart button
+             product.template form — eBay Listings smart button
         ============================================================ -->
         <record id="view_product_template_form_ebay_connector" model="ir.ui.view">
             <field name="name">product.template.form.inherit.ebay_connector</field>
