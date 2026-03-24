@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- ============================================================
+             sale.order form — inject eBay panel into the Other Info tab
+        ============================================================ -->
+        <record id="view_sale_order_form_ebay_connector" model="ir.ui.view">
+            <field name="name">sale.order.form.inherit.ebay_connector</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+
+                <!-- eBay smart button in the stat-button area -->
+                <xpath expr="//div[@name='button_box']" position="inside">
+                    <button name="%(ebay_connector.action_ebay_order)d"
+                            type="action"
+                            class="oe_stat_button"
+                            icon="fa-tag"
+                            attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
+                        <div class="o_field_widget o_stat_info">
+                            <span class="o_stat_text">eBay Order</span>
+                            <span class="o_stat_value">
+                                <field name="ebay_order_id" readonly="1"/>
+                            </span>
+                        </div>
+                    </button>
+                </xpath>
+
+                <!-- eBay fields in the Other Info tab -->
+                <xpath expr="//page[@name='other_info']" position="inside">
+                    <group string="eBay"
+                           attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
+                        <group>
+                            <field name="ebay_order_id" readonly="1"/>
+                            <field name="ebay_instance_id" readonly="1"/>
+                        </group>
+                    </group>
+                </xpath>
+
+            </field>
+        </record>
+
+        <!-- ============================================================
+             product.template form — eBay listings smart button
+        ============================================================ -->
+        <record id="view_product_template_form_ebay_connector" model="ir.ui.view">
+            <field name="name">product.template.form.inherit.ebay_connector</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_form_view"/>
+            <field name="arch" type="xml">
+
+                <xpath expr="//div[@name='button_box']" position="inside">
+                    <button name="action_view_ebay_listings"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-tag"
+                            attrs="{'invisible': [('ebay_listing_count', '=', 0)]}">
+                        <field name="ebay_listing_count"
+                               widget="statinfo"
+                               string="eBay Listings"/>
+                    </button>
+                </xpath>
+
+            </field>
+        </record>
+
+    </data>
+</odoo>

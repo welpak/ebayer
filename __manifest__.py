@@ -34,6 +34,7 @@ Features:
         'views/ebay_order_views.xml',
         'views/ebay_product_views.xml',
         'views/res_config_settings_views.xml',
+        'views/sale_order_views.xml',
         'views/menu_views.xml',
     ],
     'demo': [],
