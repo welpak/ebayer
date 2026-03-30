@@ -80,13 +80,13 @@
                                 bg_color="bg-danger"
                                 attrs="{'invisible': [('active', '=', True)]}"/>
 
-                        <!-- Title -->
+                        <!-- Title — editable when not yet published, readonly once live -->
                         <div class="oe_title">
                             <label for="ebay_item_id" string="eBay Item ID"/>
                             <h1>
                                 <field name="ebay_item_id"
-                                       placeholder="e.g. 123456789012"
-                                       readonly="1"/>
+                                       placeholder="Populated automatically after publishing"
+                                       attrs="{'readonly': [('offer_id', '!=', False)]}"/>
                             </h1>
                         </div>
 
