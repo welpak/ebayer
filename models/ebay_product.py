@@ -12,10 +12,11 @@ class EbayProductMapping(models.Model):
 
     ebay_item_id = fields.Char(
         string='eBay Item ID',
-        required=True,
         index=True,
         copy=False,
-        help='The unique listing/item identifier assigned by eBay.',
+        help='The unique listing/item identifier assigned by eBay. '
+             'Populated automatically after publishing. You may also enter an '
+             'existing eBay listing ID here to link an already-live listing.',
     )
     instance_id = fields.Many2one(
         comodel_name='ebay.instance',
@@ -104,7 +105,8 @@ class EbayProductMapping(models.Model):
         result = []
         for rec in self:
             product_name = rec.odoo_product_id.display_name if rec.odoo_product_id else _('N/A')
-            name = '[%s] %s' % (rec.ebay_item_id, product_name)
+            item_id = rec.ebay_item_id or rec.ebay_sku or _('New')
+            name = '[%s] %s' % (item_id, product_name)
             result.append((rec.id, name))
         return result
 

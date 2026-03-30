@@ -29,12 +29,12 @@
                            decoration-success="sync_status == 'synced'"
                            decoration-warning="sync_status == 'pending'"
                            decoration-danger="sync_status == 'error'"
-                           decoration-secondary="sync_status == 'cancelled'"/>
+                           decoration-muted="sync_status == 'cancelled'"/>
                     <field name="fulfillment_status"
                            widget="badge"
                            decoration-success="fulfillment_status == 'fulfilled'"
                            decoration-warning="fulfillment_status == 'in_progress'"
-                           decoration-secondary="fulfillment_status == 'not_started'"/>
+                           decoration-muted="fulfillment_status == 'not_started'"/>
                     <field name="odoo_order_id" string="Sale Order" optional="show"/>
                     <field name="last_sync_date" string="Last Synced" optional="show"/>
                 </tree>

@@ -13,21 +13,25 @@
                       decoration-muted="active == False or listing_status == 'ended'"
                       decoration-warning="listing_status == 'out_of_stock'"
                       decoration-success="listing_status == 'active' and sync_inventory == True">
-                    <field name="ebay_item_id" string="eBay Item ID"/>
-                    <field name="instance_id" string="Instance"/>
+                    <field name="ebay_item_id"    string="eBay Item ID"/>
+                    <field name="instance_id"     string="Instance"/>
                     <field name="odoo_product_id" string="Odoo Product"/>
-                    <field name="ebay_sku" string="eBay SKU"/>
-                    <field name="ebay_quantity" string="eBay Qty"/>
+                    <field name="ebay_sku"         string="eBay SKU"/>
+                    <field name="marketplace_id"   string="Marketplace" optional="show"/>
+                    <field name="ebay_price"       string="Price" optional="show"/>
+                    <field name="ebay_currency_id" string="Currency" invisible="1"/>
+                    <field name="ebay_quantity"    string="eBay Qty"/>
                     <field name="listing_status"
                            widget="badge"
                            decoration-success="listing_status == 'active'"
                            decoration-danger="listing_status == 'ended'"
                            decoration-warning="listing_status == 'out_of_stock'"
-                           decoration-secondary="listing_status == 'unknown'"/>
+                           decoration-muted="listing_status == 'unknown'"/>
                     <field name="sync_inventory"
                            string="Sync Stock"
                            widget="boolean_toggle"/>
-                    <field name="last_inventory_sync" string="Last Sync" optional="show"/>
+                    <field name="last_listing_sync"    string="Last Listing Sync" optional="show"/>
+                    <field name="last_inventory_sync"  string="Last Inventory Sync" optional="show"/>
                     <field name="active" invisible="1"/>
                 </tree>
             </field>
@@ -41,8 +45,33 @@
             <field name="model">ebay.product.mapping</field>
             <field name="arch" type="xml">
                 <form string="eBay Product Mapping">
+                    <header>
+                        <!-- Publish: creates/updates inventory item + offer, then publishes -->
+                        <button name="action_publish_to_ebay"
+                                string="Publish to eBay"
+                                type="object"
+                                class="oe_highlight"
+                                attrs="{'invisible': [('listing_status', '=', 'active')]}"/>
+                        <!-- Update: re-push price/title/qty to a live listing -->
+                        <button name="action_update_ebay_listing"
+                                string="Update Listing"
+                                type="object"
+                                attrs="{'invisible': [('listing_status', '!=', 'active')]}"/>
+                        <!-- Withdraw: end the listing without deleting the mapping -->
+                        <button name="action_withdraw_from_ebay"
+                                string="Withdraw from eBay"
+                                type="object"
+                                attrs="{'invisible': [('offer_id', 'in', [False, ''])]}"/>
+                        <!-- Pull: fetch current eBay state into this record -->
+                        <button name="action_pull_from_ebay"
+                                string="Pull from eBay"
+                                type="object"/>
+                        <field name="listing_status"
+                               widget="statusbar"
+                               statusbar_visible="unknown,active,out_of_stock,ended"/>
+                    </header>
                     <sheet>
-                        <!-- Smart-button bar — populated by Phase 3 -->
+                        <!-- Smart-button bar -->
                         <div class="oe_button_box" name="button_box"/>
 
                         <!-- Archived ribbon -->
@@ -51,13 +80,13 @@
                                 bg_color="bg-danger"
                                 attrs="{'invisible': [('active', '=', True)]}"/>
 
-                        <!-- Title -->
+                        <!-- Title — editable when not yet published, readonly once live -->
                         <div class="oe_title">
                             <label for="ebay_item_id" string="eBay Item ID"/>
                             <h1>
                                 <field name="ebay_item_id"
-                                       placeholder="e.g. 123456789012"
-                                       readonly="1"/>
+                                       placeholder="Populated automatically after publishing"
+                                       attrs="{'readonly': [('offer_id', '!=', False)]}"/>
                             </h1>
                         </div>
 
@@ -73,30 +102,77 @@
                                 <field name="ebay_sku"/>
                                 <field name="active" widget="boolean_toggle"/>
                             </group>
-                            <group string="eBay Listing">
+                            <group string="eBay Listing Status">
                                 <field name="listing_status"
                                        widget="badge"
                                        decoration-success="listing_status == 'active'"
                                        decoration-danger="listing_status == 'ended'"
                                        decoration-warning="listing_status == 'out_of_stock'"
-                                       decoration-secondary="listing_status == 'unknown'"/>
+                                       decoration-muted="listing_status == 'unknown'"/>
+                                <field name="offer_id" readonly="1"/>
                                 <field name="ebay_quantity"/>
+                                <field name="last_listing_sync" readonly="1"/>
                             </group>
                         </group>
 
-                        <!-- Inventory sync -->
-                        <group string="Inventory Synchronisation">
-                            <group>
-                                <field name="sync_inventory" widget="boolean_toggle"/>
-                                <field name="last_inventory_sync" readonly="1"/>
-                            </group>
-                            <group>
-                                <field name="sync_error_message"
-                                       readonly="1"
-                                       widget="text"
-                                       attrs="{'invisible': [('sync_error_message', 'in', [False, ''])]}"/>
-                            </group>
-                        </group>
+                        <notebook>
+
+                            <!-- ==========================================
+                                 Page 1: Listing Details
+                            =========================================== -->
+                            <page string="Listing Details" name="listing_details">
+                                <group>
+                                    <group string="Content">
+                                        <field name="ebay_title"
+                                               placeholder="Max 80 characters"/>
+                                        <field name="ebay_condition"/>
+                                        <field name="ebay_category_id"
+                                               placeholder="e.g. 9394"/>
+                                        <field name="marketplace_id"/>
+                                    </group>
+                                    <group string="Pricing">
+                                        <field name="ebay_price"/>
+                                        <field name="ebay_currency_id"
+                                               options="{'no_create': True}"/>
+                                    </group>
+                                </group>
+                                <group string="Description">
+                                    <field name="ebay_description"
+                                           nolabel="1"
+                                           placeholder="Listing description (HTML accepted)"/>
+                                </group>
+                                <group string="Business Policies">
+                                    <group>
+                                        <field name="fulfillment_policy_id"
+                                               placeholder="Leave blank to use instance default"/>
+                                        <field name="payment_policy_id"
+                                               placeholder="Leave blank to use instance default"/>
+                                        <field name="return_policy_id"
+                                               placeholder="Leave blank to use instance default"/>
+                                    </group>
+                                </group>
+                            </page>
+
+                            <!-- ==========================================
+                                 Page 2: Inventory Sync
+                            =========================================== -->
+                            <page string="Inventory Sync" name="inventory_sync">
+                                <group>
+                                    <group>
+                                        <field name="sync_inventory"
+                                               widget="boolean_toggle"/>
+                                        <field name="last_inventory_sync" readonly="1"/>
+                                    </group>
+                                    <group>
+                                        <field name="sync_error_message"
+                                               readonly="1"
+                                               widget="text"
+                                               attrs="{'invisible': [('sync_error_message', 'in', [False, ''])]}"/>
+                                    </group>
+                                </group>
+                            </page>
+
+                        </notebook>
                     </sheet>
                 </form>
             </field>
@@ -110,17 +186,11 @@
             <field name="model">ebay.product.mapping</field>
             <field name="arch" type="xml">
                 <search string="Search Product Mappings">
-                    <field name="ebay_item_id" string="eBay Item ID"/>
-                    <field name="ebay_sku" string="eBay SKU"/>
-                    <field name="odoo_product_id" string="Odoo Product"/>
-                    <field name="instance_id" string="Instance"/>
-                    <separator/>
-                    <filter name="filter_sync_inventory"
-                            string="Inventory Sync On"
-                            domain="[('sync_inventory', '=', True)]"/>
-                    <filter name="filter_no_sync"
-                            string="Inventory Sync Off"
-                            domain="[('sync_inventory', '=', False)]"/>
+                    <field name="ebay_item_id"    string="eBay Item ID"/>
+                    <field name="ebay_sku"         string="eBay SKU"/>
+                    <field name="ebay_title"       string="eBay Title"/>
+                    <field name="odoo_product_id"  string="Odoo Product"/>
+                    <field name="instance_id"      string="Instance"/>
                     <separator/>
                     <filter name="filter_active_listing"
                             string="Active Listings"
@@ -132,6 +202,13 @@
                             string="Ended Listings"
                             domain="[('listing_status', '=', 'ended')]"/>
                     <separator/>
+                    <filter name="filter_sync_inventory"
+                            string="Inventory Sync On"
+                            domain="[('sync_inventory', '=', True)]"/>
+                    <filter name="filter_no_sync"
+                            string="Inventory Sync Off"
+                            domain="[('sync_inventory', '=', False)]"/>
+                    <separator/>
                     <filter name="filter_archived"
                             string="Archived"
                             domain="[('active', '=', False)]"/>
@@ -142,6 +219,9 @@
                         <filter name="group_listing_status"
                                 string="Listing Status"
                                 context="{'group_by': 'listing_status'}"/>
+                        <filter name="group_marketplace"
+                                string="Marketplace"
+                                context="{'group_by': 'marketplace_id'}"/>
                         <filter name="group_product_template"
                                 string="Product"
                                 context="{'group_by': 'odoo_product_tmpl_id'}"/>
@@ -157,15 +237,16 @@
             <field name="name">eBay Product Mappings</field>
             <field name="res_model">ebay.product.mapping</field>
             <field name="view_mode">tree,form</field>
-            <field name="context">{'search_default_filter_sync_inventory': 1}</field>
+            <field name="context">{'search_default_filter_active_listing': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No product mappings yet
                 </p>
                 <p>
-                    Create a mapping to link an eBay listing to an Odoo
-                    product variant. Enabling <strong>Sync Stock</strong>
-                    will push your Odoo inventory to eBay automatically.
+                    Create a mapping to link an Odoo product to an eBay listing.
+                    Use <strong>Publish to eBay</strong> to push new listings,
+                    or enable <strong>Listing Sync</strong> to pull existing
+                    eBay listings automatically.
                 </p>
             </field>
         </record>
