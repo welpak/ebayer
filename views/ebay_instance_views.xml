@@ -85,7 +85,12 @@
                                        widget="boolean_toggle"/>
                                 <field name="enable_batch_sync"
                                        widget="boolean_toggle"/>
+                                <field name="enable_listing_sync"
+                                       widget="boolean_toggle"/>
+                                <field name="enable_order_export"
+                                       widget="boolean_toggle"/>
                                 <field name="last_order_sync" readonly="1"/>
+                                <field name="last_listing_pull_sync" readonly="1"/>
                             </group>
                         </group>
 
@@ -117,7 +122,36 @@
                                 </group>
                             </page>
 
-                            <!-- Page 2: Webhook Configuration -->
+                            <!-- Page 2: Listing Defaults -->
+                            <page string="Listing Defaults" name="listing_defaults">
+                                <group>
+                                    <group string="Marketplace &amp; Policies">
+                                        <field name="default_marketplace_id"
+                                               placeholder="e.g. EBAY_US"/>
+                                        <field name="default_fulfillment_policy_id"
+                                               placeholder="Policy ID from Seller Hub"/>
+                                        <field name="default_payment_policy_id"
+                                               placeholder="Policy ID from Seller Hub"/>
+                                        <field name="default_return_policy_id"
+                                               placeholder="Policy ID from Seller Hub"/>
+                                    </group>
+                                    <group string="About Listing Defaults">
+                                        <div class="o_field_widget">
+                                            <p class="text-muted">
+                                                These values are used as fallbacks when a
+                                                product mapping does not specify its own
+                                                marketplace or policy IDs.
+                                            </p>
+                                            <p class="text-muted">
+                                                Find your policy IDs in
+                                                <strong>eBay Seller Hub → Account → Policies</strong>.
+                                            </p>
+                                        </div>
+                                    </group>
+                                </group>
+                            </page>
+
+                            <!-- Page 3: Webhook Configuration -->
                             <page string="Webhook" name="webhook"
                                   attrs="{'invisible': [('enable_instant_sync', '=', False)]}">
                                 <group>

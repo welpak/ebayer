@@ -30,6 +30,16 @@ _ORDER_TOPICS = frozenset([
     'MARKETPLACE_ORDER_CREATED',
 ])
 
+# eBay notification topics that represent listing/inventory changes
+_LISTING_TOPICS = frozenset([
+    'marketplace.item.ended',
+    'marketplace.item.sold',
+    'MARKETPLACE_ITEM_ENDED',
+    'MARKETPLACE_ITEM_SOLD',
+    'inventory.item.updated',
+    'INVENTORY_ITEM_UPDATED',
+])
+
 
 class EbayWebhookController(http.Controller):
 
@@ -128,6 +138,10 @@ class EbayWebhookController(http.Controller):
         if topic in _ORDER_TOPICS or any(t in topic for t in ('order', 'payment')):
             self._dispatch_order_event(payload)
 
+        # Dispatch listing / inventory events
+        elif topic in _LISTING_TOPICS or any(t in topic for t in ('item', 'inventory')):
+            self._dispatch_listing_event(payload)
+
         return Response(status=200)
 
     def _dispatch_order_event(self, payload):
@@ -169,4 +183,45 @@ class EbayWebhookController(http.Controller):
                 "eBay webhook: unhandled error processing order %s on instance '%s'",
                 ebay_order_id,
                 instance.name,
+            )
+
+    def _dispatch_listing_event(self, payload):
+        """
+        Extract the SKU from a listing/inventory notification and trigger a
+        single-item pull so the ebay.product.mapping is updated immediately.
+        """
+        data = payload.get('data') or payload.get('notification', {}).get('data', {})
+        sku  = (
+            data.get('sku')
+            or data.get('inventoryItemKey')
+            or data.get('itemId')
+            or ''
+        )
+
+        if not sku:
+            _logger.warning(
+                "eBay webhook listing event has no SKU — payload keys: %s",
+                list(payload.keys()),
+            )
+            return
+
+        domain   = [('active', '=', True), ('connection_status', '=', 'connected')]
+        instance = (
+            request.env['ebay.instance']
+            .sudo()
+            .search(domain, limit=1)
+        )
+        if not instance:
+            _logger.error(
+                "eBay webhook: no connected instance found to process listing "
+                "event for SKU '%s'", sku,
+            )
+            return
+
+        try:
+            instance.sudo()._fetch_and_sync_single_item(sku)
+        except Exception:
+            _logger.exception(
+                "eBay webhook: unhandled error syncing listing SKU '%s' on "
+                "instance '%s'", sku, instance.name,
             )

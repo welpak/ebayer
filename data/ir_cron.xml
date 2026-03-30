@@ -6,9 +6,9 @@
             overwritten on subsequent module upgrades, which would reset
             user-configured intervals back to the defaults.
 
-            Both crons are inactive by default.  The res.config.settings
-            set_values() method activates them when the user enables
-            Batch Sync and saves the Settings form.
+            All crons are inactive by default.  The res.config.settings
+            set_values() method activates / deactivates each one when the
+            user saves the Settings form.
         -->
 
         <!-- ============================================================
@@ -47,6 +47,44 @@
             <field name="nextcall"
                    eval="(DateTime.now() + timedelta(minutes=35)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="priority">10</field>
+        </record>
+
+        <!-- ============================================================
+             Cron 3 — Pull Listings from eBay (eBay → Odoo)
+        ============================================================ -->
+        <record id="ir_cron_pull_listings" model="ir.cron">
+            <field name="name">eBay: Pull Listings</field>
+            <field name="model_id" ref="model_ebay_instance"/>
+            <field name="state">code</field>
+            <field name="code">model.sudo()._cron_pull_listings()</field>
+            <field name="interval_number">60</field>
+            <field name="interval_type">minutes</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="False"/>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="nextcall"
+                   eval="(DateTime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="priority">15</field>
+        </record>
+
+        <!-- ============================================================
+             Cron 4 — Export Orders to eBay (Odoo → eBay)
+        ============================================================ -->
+        <record id="ir_cron_export_orders" model="ir.cron">
+            <field name="name">eBay: Export Orders</field>
+            <field name="model_id" ref="model_ebay_instance"/>
+            <field name="state">code</field>
+            <field name="code">model.sudo()._cron_export_orders()</field>
+            <field name="interval_number">30</field>
+            <field name="interval_type">minutes</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="False"/>
+            <field name="user_id" ref="base.user_admin"/>
+            <field name="nextcall"
+                   eval="(DateTime.now() + timedelta(minutes=40)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="priority">20</field>
         </record>
 
     </data>

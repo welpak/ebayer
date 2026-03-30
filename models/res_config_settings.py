@@ -56,6 +56,17 @@ class ResConfigSettings(models.TransientModel):
              'the eBay cron jobs; disabling it deactivates them.',
     )
 
+    ebay_listing_sync = fields.Boolean(
+        string='Enable Listing Sync (Pull from eBay)',
+        help='Periodically pull eBay listings into Odoo product mappings via the '
+             'batch cron. Also enables webhook processing of listing-change events.',
+    )
+    ebay_order_export = fields.Boolean(
+        string='Enable Order Export to eBay',
+        help='Allow confirmed Odoo sale orders to be pushed to eBay as '
+             'Buy-It-Now listings. Activates the export cron when saved.',
+    )
+
     # ------------------------------------------------------------------
     # Cron / scheduler interval (applied to both eBay ir.cron records)
     # ------------------------------------------------------------------
@@ -96,23 +107,27 @@ class ResConfigSettings(models.TransientModel):
 
         if instance:
             res.update({
-                'ebay_environment':      instance.environment,
-                'ebay_app_id':           instance.app_id,
-                'ebay_dev_id':           instance.dev_id,
-                'ebay_cert_id':          instance.cert_id,
+                'ebay_environment':       instance.environment,
+                'ebay_app_id':            instance.app_id,
+                'ebay_dev_id':            instance.dev_id,
+                'ebay_cert_id':           instance.cert_id,
                 'ebay_connection_status': instance.connection_status,
-                'ebay_instant_sync':     instance.enable_instant_sync,
-                'ebay_batch_sync':       instance.enable_batch_sync,
+                'ebay_instant_sync':      instance.enable_instant_sync,
+                'ebay_batch_sync':        instance.enable_batch_sync,
+                'ebay_listing_sync':      instance.enable_listing_sync,
+                'ebay_order_export':      instance.enable_order_export,
             })
         else:
             res.update({
-                'ebay_environment':      'sandbox',
-                'ebay_app_id':           False,
-                'ebay_dev_id':           False,
-                'ebay_cert_id':          False,
+                'ebay_environment':       'sandbox',
+                'ebay_app_id':            False,
+                'ebay_dev_id':            False,
+                'ebay_cert_id':           False,
                 'ebay_connection_status': 'not_connected',
-                'ebay_instant_sync':     False,
-                'ebay_batch_sync':       False,
+                'ebay_instant_sync':      False,
+                'ebay_batch_sync':        False,
+                'ebay_listing_sync':      False,
+                'ebay_order_export':      False,
             })
 
         # Pull cron interval from the fetch-orders cron record
@@ -146,21 +161,23 @@ class ResConfigSettings(models.TransientModel):
         # 2. Write credentials + sync flags back to the instance record
         if self.ebay_instance_id:
             self.ebay_instance_id.sudo().write({
-                'environment':        self.ebay_environment or 'sandbox',
-                'app_id':             self.ebay_app_id or '',
-                'dev_id':             self.ebay_dev_id or '',
-                'cert_id':            self.ebay_cert_id or '',
-                'enable_instant_sync': bool(self.ebay_instant_sync),
-                'enable_batch_sync':   bool(self.ebay_batch_sync),
+                'environment':          self.ebay_environment or 'sandbox',
+                'app_id':               self.ebay_app_id or '',
+                'dev_id':               self.ebay_dev_id or '',
+                'cert_id':              self.ebay_cert_id or '',
+                'enable_instant_sync':  bool(self.ebay_instant_sync),
+                'enable_batch_sync':    bool(self.ebay_batch_sync),
+                'enable_listing_sync':  bool(self.ebay_listing_sync),
+                'enable_order_export':  bool(self.ebay_order_export),
             })
 
-        # 3. Update both eBay ir.cron records:
-        #    - active  → mirrors the batch sync toggle
-        #    - interval → taken from the interval fields
-        cron_vals = {
+        # 3. Order/inventory crons — controlled by the batch sync toggle
+        interval_number = max(1, self.ebay_cron_interval_number or 30)
+        interval_type   = self.ebay_cron_interval_type or 'minutes'
+        batch_cron_vals = {
             'active':          bool(self.ebay_batch_sync),
-            'interval_number': max(1, self.ebay_cron_interval_number or 30),
-            'interval_type':   self.ebay_cron_interval_type or 'minutes',
+            'interval_number': interval_number,
+            'interval_type':   interval_type,
         }
         for xmlid in (
             'ebay_connector.ir_cron_fetch_orders',
@@ -168,7 +185,29 @@ class ResConfigSettings(models.TransientModel):
         ):
             cron = self.env.ref(xmlid, raise_if_not_found=False)
             if cron:
-                cron.sudo().write(cron_vals)
+                cron.sudo().write(batch_cron_vals)
+
+        # 4. Listing-pull cron — controlled by the listing sync toggle
+        listing_cron = self.env.ref(
+            'ebay_connector.ir_cron_pull_listings', raise_if_not_found=False
+        )
+        if listing_cron:
+            listing_cron.sudo().write({
+                'active':          bool(self.ebay_listing_sync),
+                'interval_number': interval_number,
+                'interval_type':   interval_type,
+            })
+
+        # 5. Order-export cron — controlled by the order export toggle
+        export_cron = self.env.ref(
+            'ebay_connector.ir_cron_export_orders', raise_if_not_found=False
+        )
+        if export_cron:
+            export_cron.sudo().write({
+                'active':          bool(self.ebay_order_export),
+                'interval_number': interval_number,
+                'interval_type':   interval_type,
+            })
 
     # ------------------------------------------------------------------
     # onchange — refresh credential panel when the instance is swapped
@@ -177,18 +216,22 @@ class ResConfigSettings(models.TransientModel):
     def _onchange_ebay_instance_id(self):
         instance = self.ebay_instance_id
         if instance:
-            self.ebay_environment      = instance.environment
-            self.ebay_app_id           = instance.app_id
-            self.ebay_dev_id           = instance.dev_id
-            self.ebay_cert_id          = instance.cert_id
+            self.ebay_environment       = instance.environment
+            self.ebay_app_id            = instance.app_id
+            self.ebay_dev_id            = instance.dev_id
+            self.ebay_cert_id           = instance.cert_id
             self.ebay_connection_status = instance.connection_status
-            self.ebay_instant_sync     = instance.enable_instant_sync
-            self.ebay_batch_sync       = instance.enable_batch_sync
+            self.ebay_instant_sync      = instance.enable_instant_sync
+            self.ebay_batch_sync        = instance.enable_batch_sync
+            self.ebay_listing_sync      = instance.enable_listing_sync
+            self.ebay_order_export      = instance.enable_order_export
         else:
-            self.ebay_environment      = 'sandbox'
-            self.ebay_app_id           = False
-            self.ebay_dev_id           = False
-            self.ebay_cert_id          = False
+            self.ebay_environment       = 'sandbox'
+            self.ebay_app_id            = False
+            self.ebay_dev_id            = False
+            self.ebay_cert_id           = False
             self.ebay_connection_status = 'not_connected'
-            self.ebay_instant_sync     = False
-            self.ebay_batch_sync       = False
+            self.ebay_instant_sync      = False
+            self.ebay_batch_sync        = False
+            self.ebay_listing_sync      = False
+            self.ebay_order_export      = False

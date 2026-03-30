@@ -270,6 +270,10 @@ class EbayApiClient:
         """HTTP PUT with a JSON body."""
         return self.make_request('PUT', path, json=payload)
 
+    def delete(self, path):
+        """HTTP DELETE."""
+        return self.make_request('DELETE', path)
+
 
 # ---------------------------------------------------------------------------
 # ebay.instance extension — operational fields + high-level API methods
@@ -315,6 +319,54 @@ class EbayInstanceApiMethods(models.Model):
         readonly=True,
         copy=False,
         help='Timestamp of the most recent successful order fetch from eBay.',
+    )
+
+    # ------------------------------------------------------------------
+    # Listing-sync fields (Phase 4)
+    # ------------------------------------------------------------------
+    enable_listing_sync = fields.Boolean(
+        string='Enable Listing Sync (Pull from eBay)',
+        default=False,
+        help='When enabled, the batch cron will pull eBay listings into Odoo '
+             'and the webhook controller will process listing-change events.',
+    )
+    last_listing_pull_sync = fields.Datetime(
+        string='Last Listing Pull Sync',
+        readonly=True,
+        copy=False,
+        help='UTC timestamp of the most recent successful listing pull from eBay.',
+    )
+    default_marketplace_id = fields.Char(
+        string='Default Marketplace',
+        default='EBAY_US',
+        help='Default eBay marketplace used when publishing listings from this '
+             'instance (e.g. EBAY_US, EBAY_GB, EBAY_DE). '
+             'Can be overridden per product mapping.',
+    )
+    default_fulfillment_policy_id = fields.Char(
+        string='Default Fulfillment Policy ID',
+        help='eBay fulfillment policy ID applied to listings that do not '
+             'specify their own. Find policy IDs in Seller Hub → Policies.',
+    )
+    default_payment_policy_id = fields.Char(
+        string='Default Payment Policy ID',
+        help='eBay payment policy ID applied to listings that do not specify '
+             'their own.',
+    )
+    default_return_policy_id = fields.Char(
+        string='Default Return Policy ID',
+        help='eBay return policy ID applied to listings that do not specify '
+             'their own.',
+    )
+
+    # ------------------------------------------------------------------
+    # Order-export fields (Phase 4)
+    # ------------------------------------------------------------------
+    enable_order_export = fields.Boolean(
+        string='Enable Order Export to eBay',
+        default=False,
+        help='When enabled, confirmed Odoo sale orders marked for export will '
+             'be pushed to eBay as Buy-It-Now listings.',
     )
 
     # ------------------------------------------------------------------
@@ -608,3 +660,192 @@ class EbayInstanceApiMethods(models.Model):
                 ebay_order_id, self.name, exc,
             )
             raise
+
+    # ------------------------------------------------------------------
+    # Listing pull (batch cron + single-item webhook helper)
+    # ------------------------------------------------------------------
+
+    def _cron_pull_listings(self):
+        """
+        Called by ir.cron.  Iterates all active instances with listing-sync
+        enabled and pulls the full eBay inventory catalogue into Odoo mappings.
+        """
+        instances = self.search([
+            ('active', '=', True),
+            ('connection_status', '=', 'connected'),
+            ('enable_listing_sync', '=', True),
+        ])
+        for instance in instances:
+            try:
+                instance._pull_and_sync_listings()
+            except Exception:
+                _logger.exception(
+                    "eBay _cron_pull_listings: unhandled error on instance "
+                    "'%s' (id=%s)", instance.name, instance.id,
+                )
+
+    def _pull_and_sync_listings(self):
+        """
+        Full catalogue pull for this instance.
+
+        Strategy (avoids N+1 API calls):
+          1. Pre-fetch ALL offers in one paginated pass → dict {sku: offer_data}
+          2. Paginate GET /sell/inventory/v1/inventory_item
+          3. For each item call Mapping._create_or_sync_from_ebay_item()
+        """
+        self.ensure_one()
+        client  = EbayApiClient(self)
+        Mapping = self.env['ebay.product.mapping']
+
+        # Step 1: pre-fetch all offers indexed by SKU
+        offers_by_sku = self._fetch_all_offers(client)
+
+        # Step 2: page through inventory items
+        limit  = 25
+        offset = 0
+
+        while True:
+            try:
+                response = client.get(
+                    '/sell/inventory/v1/inventory_item',
+                    limit=limit,
+                    offset=offset,
+                )
+            except RequestException:
+                _logger.exception(
+                    "eBay: HTTP error fetching inventory items (offset=%s) "
+                    "for instance '%s'", offset, self.name,
+                )
+                break
+
+            items = response.get('inventoryItems', [])
+            if not items:
+                break
+
+            for item_data in items:
+                sku        = item_data.get('sku', '')
+                offer_data = offers_by_sku.get(sku, {})
+                try:
+                    Mapping.sudo()._create_or_sync_from_ebay_item(
+                        self, item_data, offer_data
+                    )
+                except Exception:
+                    _logger.exception(
+                        "eBay: failed to sync inventory item SKU '%s' for "
+                        "instance '%s'", sku, self.name,
+                    )
+
+            total   = int(response.get('total', 0))
+            offset += limit
+            if offset >= total:
+                break
+
+        self.sudo().write({'last_listing_pull_sync': fields.Datetime.now()})
+        _logger.info(
+            "eBay: listing pull complete for instance '%s'", self.name
+        )
+
+    def _fetch_all_offers(self, client=None):
+        """
+        Page through GET /sell/inventory/v1/offer and return a dict mapping
+        each SKU to its offer dict.  Used to avoid per-item API calls.
+
+        :param client: Optional EbayApiClient; creates one if not provided.
+        :returns:      Dict {sku: offer_dict}
+        """
+        self.ensure_one()
+        if client is None:
+            client = EbayApiClient(self)
+
+        offers_by_sku = {}
+        limit         = 100
+        offset        = 0
+
+        while True:
+            try:
+                response = client.get(
+                    '/sell/inventory/v1/offer',
+                    limit=limit,
+                    offset=offset,
+                )
+            except RequestException:
+                _logger.exception(
+                    "eBay: HTTP error fetching offers (offset=%s) for "
+                    "instance '%s'", offset, self.name,
+                )
+                break
+
+            offers = response.get('offers', [])
+            for offer in offers:
+                sku = offer.get('sku', '')
+                if sku:
+                    offers_by_sku[sku] = offer
+
+            total   = int(response.get('total', 0))
+            offset += limit
+            if offset >= total:
+                break
+
+        return offers_by_sku
+
+    def _fetch_and_sync_single_item(self, sku):
+        """
+        Fetch one inventory item (and its offer) from eBay by SKU and
+        sync it into Odoo.  Used by the webhook controller for real-time
+        listing-change events.
+        """
+        self.ensure_one()
+        client = EbayApiClient(self)
+
+        try:
+            item_data  = client.get(f'/sell/inventory/v1/inventory_item/{sku}')
+            offer_resp = client.get('/sell/inventory/v1/offer', sku=sku)
+            offers     = offer_resp.get('offers', [])
+            offer_data = offers[0] if offers else {}
+        except RequestException:
+            _logger.exception(
+                "eBay: HTTP error fetching item/offer for SKU '%s' on "
+                "instance '%s'", sku, self.name,
+            )
+            return
+
+        self.env['ebay.product.mapping'].sudo()._create_or_sync_from_ebay_item(
+            self, item_data, offer_data
+        )
+
+    # ------------------------------------------------------------------
+    # Order export (batch cron)
+    # ------------------------------------------------------------------
+
+    def _cron_export_orders(self):
+        """
+        Called by ir.cron.  Finds all confirmed sale orders that are marked
+        for eBay export (ebay_export_status == 'pending') and pushes them.
+        """
+        instances = self.search([
+            ('active', '=', True),
+            ('connection_status', '=', 'connected'),
+            ('enable_order_export', '=', True),
+        ])
+        if not instances:
+            return
+
+        pending_orders = self.env['sale.order'].search([
+            ('ebay_export_status', '=', 'pending'),
+            ('state', 'in', ['sale', 'done']),
+        ])
+
+        for order in pending_orders:
+            # Use the order's assigned instance, or fall back to the first
+            # connected instance that has order export enabled
+            instance = order.ebay_instance_id
+            if not instance or instance not in instances:
+                instance = instances[:1]
+            try:
+                order.sudo()._do_export_to_ebay(instance)
+            except Exception:
+                _logger.exception(
+                    "eBay _cron_export_orders: failed to export order %s",
+                    order.name,
+                )
+                order.sudo().write({'ebay_export_status': 'error'})

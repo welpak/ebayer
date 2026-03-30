@@ -194,6 +194,40 @@
                                 </div>
                             </div>
 
+                            <!-- Listing Sync (Pull from eBay) -->
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="ebay_listing_sync"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="ebay_listing_sync" class="o_form_label"/>
+                                    <div class="text-muted">
+                                        Periodically pull your eBay catalogue into Odoo
+                                        product mappings (batch cron) and process
+                                        listing-change webhook events in real time.
+                                        New eBay products are created automatically in
+                                        Odoo when no matching SKU is found.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Order Export (Odoo → eBay) -->
+                            <div class="col-12 col-lg-6 o_setting_box">
+                                <div class="o_setting_left_pane">
+                                    <field name="ebay_order_export"/>
+                                </div>
+                                <div class="o_setting_right_pane">
+                                    <label for="ebay_order_export" class="o_form_label"/>
+                                    <div class="text-muted">
+                                        Allow confirmed Odoo sale orders to be pushed to
+                                        eBay as Buy-It-Now listings. Tick
+                                        <strong>Export to eBay</strong> on a sale order
+                                        to export it instantly on confirmation, or rely
+                                        on the scheduled job for batch processing.
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </xpath>

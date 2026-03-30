@@ -3,13 +3,27 @@
     <data>
 
         <!-- ============================================================
-             sale.order form — eBay smart button + dedicated eBay tab
+             sale.order form — eBay smart buttons + dedicated eBay tab
         ============================================================ -->
         <record id="view_sale_order_form_ebay_connector" model="ir.ui.view">
             <field name="name">sale.order.form.inherit.ebay_connector</field>
             <field name="model">sale.order</field>
             <field name="inherit_id" ref="sale.view_order_form"/>
             <field name="arch" type="xml">
+
+                <!-- Export button in the header — visible on non-eBay orders when
+                     the Order Export feature is in use -->
+                <xpath expr="//div[@name='button_box']" position="before">
+                    <button name="action_export_to_ebay"
+                            string="Export to eBay"
+                            type="object"
+                            class="btn-secondary"
+                            attrs="{'invisible': [
+                                '|',
+                                ('ebay_order_id', '!=', False),
+                                ('ebay_export_status', '=', 'exported')
+                            ]}"/>
+                </xpath>
 
                 <!-- Stat button — only visible when the order came from eBay -->
                 <xpath expr="//div[@name='button_box']" position="inside">
@@ -27,17 +41,38 @@
                     </button>
                 </xpath>
 
-                <!-- Append a dedicated eBay page at the end of the notebook.
-                     Using position="inside" on //notebook avoids any dependency
-                     on specific page names in the base sale.order form. -->
+                <!-- Append a dedicated eBay page at the end of the notebook -->
                 <xpath expr="//notebook" position="inside">
                     <page string="eBay"
                           name="ebay_connector"
-                          attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
+                          attrs="{'invisible': [
+                              ('ebay_order_id', 'in', [False, '']),
+                              ('ebay_export_to_ebay', '=', False),
+                              ('ebay_export_status', '=', 'not_exported')
+                          ]}">
                         <group>
-                            <group string="eBay Reference">
-                                <field name="ebay_order_id" readonly="1"/>
+                            <!-- Imported eBay order reference -->
+                            <group string="eBay Order Import"
+                                   attrs="{'invisible': [('ebay_order_id', 'in', [False, ''])]}">
+                                <field name="ebay_order_id"    readonly="1"/>
                                 <field name="ebay_instance_id" readonly="1"/>
+                            </group>
+                            <!-- Export to eBay section -->
+                            <group string="eBay Export">
+                                <field name="ebay_export_to_ebay"
+                                       widget="boolean_toggle"
+                                       attrs="{'readonly': [('ebay_export_status', '=', 'exported')]}"/>
+                                <field name="ebay_export_status"
+                                       widget="badge"
+                                       decoration-success="ebay_export_status == 'exported'"
+                                       decoration-warning="ebay_export_status == 'pending'"
+                                       decoration-danger="ebay_export_status == 'error'"
+                                       decoration-muted="ebay_export_status == 'not_exported'"
+                                       attrs="{'invisible': [('ebay_export_status', '=', 'not_exported')]}"/>
+                                <field name="ebay_instance_id"
+                                       attrs="{'invisible': [('ebay_order_id', '!=', False)],
+                                               'readonly': [('ebay_export_status', '=', 'exported')]}"
+                                       options="{'no_create': True}"/>
                             </group>
                         </group>
                     </page>

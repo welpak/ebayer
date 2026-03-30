@@ -76,7 +76,28 @@ class SaleOrder(models.Model):
         ondelete='set null',
         copy=False,
         index=True,
-        help='The eBay account this order was imported from.',
+        help='The eBay account this order was imported from, or the account '
+             'to which this order will be exported.',
+    )
+    ebay_export_to_ebay = fields.Boolean(
+        string='Export to eBay',
+        copy=False,
+        default=False,
+        help='Tick to push this order\'s products to eBay as Buy-It-Now listings '
+             'when the order is confirmed (instant) or via the scheduled job (batch).',
+    )
+    ebay_export_status = fields.Selection(
+        selection=[
+            ('not_exported', 'Not Exported'),
+            ('pending',      'Pending Export'),
+            ('exported',     'Exported'),
+            ('error',        'Export Error'),
+        ],
+        string='eBay Export Status',
+        default='not_exported',
+        copy=False,
+        readonly=True,
+        help='Tracks the eBay export status of this sale order.',
     )
 
     # ------------------------------------------------------------------
@@ -98,6 +119,152 @@ class SaleOrder(models.Model):
             'view_mode': 'form',
             'target':    'current',
         }
+
+    # ------------------------------------------------------------------
+    # Export: Odoo → eBay
+    # ------------------------------------------------------------------
+
+    def action_export_to_ebay(self):
+        """
+        Export this sale order's product lines to eBay as Buy-It-Now listings.
+
+        For each storable/consumable order line:
+          1. Find or create an ebay.product.mapping for the product + instance.
+          2. Set the eBay price from the order line's unit price.
+          3. Publish (or re-publish) to eBay.
+
+        The eBay instance used is the one set on the order, or the first active
+        connected instance with Order Export enabled.
+        """
+        self.ensure_one()
+
+        instance = self._resolve_export_instance()
+        if not instance:
+            raise UserError(
+                _("No connected eBay instance with Order Export enabled was found. "
+                  "Enable Order Export on an eBay instance or set the eBay Instance "
+                  "directly on this order.")
+            )
+
+        self.sudo().write({
+            'ebay_export_status': 'pending',
+            'ebay_instance_id':   instance.id,
+        })
+
+        try:
+            self.sudo()._do_export_to_ebay(instance)
+        except Exception as exc:
+            self.sudo().write({'ebay_export_status': 'error'})
+            raise UserError(
+                _("eBay export failed:\n%s") % exc
+            ) from exc
+
+        return {
+            'type': 'ir.actions.client',
+            'tag':  'display_notification',
+            'params': {
+                'title':   _("Exported to eBay"),
+                'message': _("Products from order %s have been published to eBay.")
+                           % self.name,
+                'type':    'success',
+                'sticky':  False,
+            },
+        }
+
+    def _resolve_export_instance(self):
+        """
+        Return the eBay instance to use for exporting this order.
+        Priority: order's ebay_instance_id → first active+connected instance
+        with enable_order_export=True.
+        """
+        instance = self.ebay_instance_id
+        if instance and instance.active and instance.connection_status == 'connected':
+            return instance
+        return self.env['ebay.instance'].search([
+            ('active', '=', True),
+            ('connection_status', '=', 'connected'),
+            ('enable_order_export', '=', True),
+        ], limit=1)
+
+    def _do_export_to_ebay(self, instance):
+        """
+        Internal worker: create/update ebay.product.mapping records and
+        publish each exportable order line to eBay.
+        Called by action_export_to_ebay() and the batch cron.
+        """
+        Mapping         = self.env['ebay.product.mapping']
+        exported_count  = 0
+        skip_codes      = {'EBAY_SHIPPING'}
+
+        for line in self.order_line:
+            product = line.product_id
+            if not product:
+                continue
+            if product.type == 'service':
+                continue
+            if product.default_code in skip_codes:
+                continue
+
+            sku = product.default_code or str(product.id)
+
+            mapping = Mapping.search([
+                ('instance_id',     '=', instance.id),
+                ('odoo_product_id', '=', product.id),
+            ], limit=1)
+
+            if not mapping:
+                mapping = Mapping.sudo().create({
+                    'instance_id':      instance.id,
+                    'odoo_product_id':  product.id,
+                    'ebay_item_id':     sku,   # placeholder until published
+                    'ebay_sku':         sku,
+                    'ebay_price':       line.price_unit,
+                    'ebay_currency_id': self.currency_id.id,
+                    'marketplace_id':   instance.default_marketplace_id or 'EBAY_US',
+                })
+            else:
+                # Keep price in sync with this order's line price
+                mapping.sudo().write({
+                    'ebay_price':       line.price_unit,
+                    'ebay_currency_id': self.currency_id.id,
+                })
+
+            try:
+                mapping._publish_single()
+                exported_count += 1
+            except Exception:
+                _logger.exception(
+                    "eBay: failed to export order line product '%s' (order %s)",
+                    product.display_name, self.name,
+                )
+
+        self.sudo().write({
+            'ebay_export_status': 'exported' if exported_count else 'error',
+            'ebay_instance_id':   instance.id,
+        })
+        _logger.info(
+            "eBay: order %s exported — %d product(s) published", self.name, exported_count
+        )
+
+    # ------------------------------------------------------------------
+    # Instant export on order confirmation
+    # ------------------------------------------------------------------
+
+    def action_confirm(self):
+        result = super().action_confirm()
+        for order in self:
+            if order.ebay_export_to_ebay and not order.ebay_order_id:
+                instance = order._resolve_export_instance()
+                if instance:
+                    order.sudo().write({'ebay_export_status': 'pending'})
+                    try:
+                        order.sudo()._do_export_to_ebay(instance)
+                    except Exception:
+                        _logger.exception(
+                            "eBay: instant export failed for order %s", order.name
+                        )
+                        order.sudo().write({'ebay_export_status': 'error'})
+        return result
 
     # ------------------------------------------------------------------
     # Main entry point: create or retrieve the Odoo SO for an eBay order
