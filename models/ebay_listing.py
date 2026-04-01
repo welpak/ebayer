@@ -64,6 +64,25 @@ _CONDITION_SELECTION = [
 _VALID_CONDITIONS = {k for k, _ in _CONDITION_SELECTION}
 _VALID_MARKETPLACES = {k for k, _ in _MARKETPLACE_SELECTION}
 
+# BCP-47 language code required by eBay's Content-Language header per marketplace
+_MARKETPLACE_LANGUAGE = {
+    'EBAY_US':        'en-US',
+    'EBAY_GB':        'en-GB',
+    'EBAY_DE':        'de-DE',
+    'EBAY_FR':        'fr-FR',
+    'EBAY_IT':        'it-IT',
+    'EBAY_ES':        'es-ES',
+    'EBAY_CA':        'en-CA',
+    'EBAY_AU':        'en-AU',
+    'EBAY_AT':        'de-AT',
+    'EBAY_BE':        'nl-BE',
+    'EBAY_NL':        'nl-NL',
+    'EBAY_PL':        'pl-PL',
+    'EBAY_CH':        'de-CH',
+    'EBAY_IE':        'en-IE',
+    'EBAY_MOTORS_US': 'en-US',
+}
+
 
 class EbayListingMixin(models.Model):
     """
@@ -230,6 +249,10 @@ class EbayListingMixin(models.Model):
             warehouse=instance.warehouse_id.id if instance.warehouse_id else False
         ).qty_available))
 
+        marketplace    = self.marketplace_id or 'EBAY_US'
+        content_lang   = _MARKETPLACE_LANGUAGE.get(marketplace, 'en-US')
+        lang_headers   = {'Content-Language': content_lang}
+
         # ------ Step 1: PUT inventory_item --------------------------------
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
@@ -243,6 +266,7 @@ class EbayListingMixin(models.Model):
                     'shipToLocationAvailability': {'quantity': qty},
                 },
             },
+            headers=lang_headers,
         )
 
         # ------ Step 2: POST / PUT offer ----------------------------------
@@ -251,7 +275,7 @@ class EbayListingMixin(models.Model):
 
         offer_payload = {
             'sku':           sku,
-            'marketplaceId': self.marketplace_id or 'EBAY_US',
+            'marketplaceId': marketplace,
             'format':        'FIXED_PRICE',
             'pricingSummary': {
                 'price': {
@@ -278,10 +302,12 @@ class EbayListingMixin(models.Model):
             offer_payload['listingPolicies'] = policies
 
         if self.offer_id:
-            client.put(f'/sell/inventory/v1/offer/{self.offer_id}', offer_payload)
+            client.put(f'/sell/inventory/v1/offer/{self.offer_id}', offer_payload,
+                       headers=lang_headers)
             offer_id = self.offer_id
         else:
-            resp     = client.post('/sell/inventory/v1/offer', offer_payload)
+            resp     = client.post('/sell/inventory/v1/offer', offer_payload,
+                                   headers=lang_headers)
             offer_id = resp.get('offerId', '')
             if not offer_id:
                 raise UserError(
@@ -362,6 +388,10 @@ class EbayListingMixin(models.Model):
             warehouse=instance.warehouse_id.id if instance.warehouse_id else False
         ).qty_available)) if product else 0
 
+        marketplace  = self.marketplace_id or 'EBAY_US'
+        content_lang = _MARKETPLACE_LANGUAGE.get(marketplace, 'en-US')
+        lang_headers = {'Content-Language': content_lang}
+
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
             {
@@ -371,6 +401,7 @@ class EbayListingMixin(models.Model):
                     'shipToLocationAvailability': {'quantity': qty},
                 },
             },
+            headers=lang_headers,
         )
 
         currency_code = self.ebay_currency_id.name if self.ebay_currency_id else 'USD'
@@ -397,7 +428,8 @@ class EbayListingMixin(models.Model):
         if policies:
             offer_payload['listingPolicies'] = policies
 
-        client.put(f'/sell/inventory/v1/offer/{self.offer_id}', offer_payload)
+        client.put(f'/sell/inventory/v1/offer/{self.offer_id}', offer_payload,
+                   headers=lang_headers)
 
         self.sudo().write({
             'ebay_quantity':      qty,

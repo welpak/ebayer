@@ -288,13 +288,19 @@ class EbayApiClient:
         """HTTP GET with optional query parameters."""
         return self.make_request('GET', path, params=params or None)
 
-    def post(self, path, payload):
+    def post(self, path, payload, headers=None):
         """HTTP POST with a JSON body."""
-        return self.make_request('POST', path, json=payload)
+        kwargs = {'json': payload}
+        if headers:
+            kwargs['headers'] = headers
+        return self.make_request('POST', path, **kwargs)
 
-    def put(self, path, payload):
+    def put(self, path, payload, headers=None):
         """HTTP PUT with a JSON body."""
-        return self.make_request('PUT', path, json=payload)
+        kwargs = {'json': payload}
+        if headers:
+            kwargs['headers'] = headers
+        return self.make_request('PUT', path, **kwargs)
 
     def delete(self, path):
         """HTTP DELETE."""
