@@ -126,6 +126,9 @@
                             <page string="Listing Defaults" name="listing_defaults">
                                 <group>
                                     <group string="Marketplace &amp; Policies">
+                                        <field name="country_code"
+                                               placeholder="e.g. US, GB, DE, AU"
+                                               help="Two-letter ISO country code for the seller location. Used to create the eBay merchant location required when publishing listings."/>
                                         <field name="default_marketplace_id"
                                                placeholder="e.g. EBAY_US"/>
                                         <field name="default_fulfillment_policy_id"

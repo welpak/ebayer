@@ -253,6 +253,15 @@ class EbayListingMixin(models.Model):
         content_lang   = _MARKETPLACE_LANGUAGE.get(marketplace, 'en-US')
         lang_headers   = {'Content-Language': content_lang}
 
+        # Get/create merchant location (eBay needs this to resolve Item.Country)
+        location_key = instance._get_or_create_merchant_location(client)
+
+        ship_avail = {'quantity': qty}
+        if location_key:
+            ship_avail['availabilityDistributions'] = [
+                {'merchantLocationKey': location_key, 'quantity': qty}
+            ]
+
         # ------ Step 1: PUT inventory_item --------------------------------
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
@@ -263,7 +272,7 @@ class EbayListingMixin(models.Model):
                 },
                 'condition': condition,
                 'availability': {
-                    'shipToLocationAvailability': {'quantity': qty},
+                    'shipToLocationAvailability': ship_avail,
                 },
             },
             headers=lang_headers,
@@ -392,13 +401,20 @@ class EbayListingMixin(models.Model):
         content_lang = _MARKETPLACE_LANGUAGE.get(marketplace, 'en-US')
         lang_headers = {'Content-Language': content_lang}
 
+        location_key = instance._get_or_create_merchant_location(client)
+        ship_avail = {'quantity': qty}
+        if location_key:
+            ship_avail['availabilityDistributions'] = [
+                {'merchantLocationKey': location_key, 'quantity': qty}
+            ]
+
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
             {
                 'product':   {'title': title, 'description': description},
                 'condition': condition,
                 'availability': {
-                    'shipToLocationAvailability': {'quantity': qty},
+                    'shipToLocationAvailability': ship_avail,
                 },
             },
             headers=lang_headers,

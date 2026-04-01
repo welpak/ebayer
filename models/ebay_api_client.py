@@ -402,6 +402,19 @@ class EbayInstanceApiMethods(models.Model):
     )
 
     # ------------------------------------------------------------------
+    # Merchant location (required for Item.Country when publishing)
+    # ------------------------------------------------------------------
+    country_code = fields.Char(
+        string='Seller Country Code',
+        size=2,
+        default='US',
+        help='Two-letter ISO 3166-1 alpha-2 country code of this seller\'s '
+             'location (e.g. US, GB, DE, AU). Used to create/maintain the '
+             'eBay merchant location record that eBay needs to resolve '
+             'Item.Country when a listing is published.',
+    )
+
+    # ------------------------------------------------------------------
     # API client factory
     # ------------------------------------------------------------------
 
@@ -409,6 +422,59 @@ class EbayInstanceApiMethods(models.Model):
         """Return an EbayApiClient bound to this instance."""
         self.ensure_one()
         return EbayApiClient(self)
+
+    # ------------------------------------------------------------------
+    # Merchant location helper
+    # ------------------------------------------------------------------
+
+    def _get_or_create_merchant_location(self, client):
+        """
+        Return a merchant location key for this instance, upserting a minimal
+        default location if needed.
+
+        eBay's Inventory API requires at least one merchant location so it can
+        populate Item.Country when a listing is published.  Without it the
+        publish call fails with errorId 25002.
+
+        Uses 'odoo-default' as the location key (idempotent PUT).
+        Falls back to the first enabled existing location if the upsert fails.
+        Returns None if no location can be obtained (publish will be attempted
+        without a distribution set and may fail depending on account config).
+        """
+        self.ensure_one()
+        location_key = 'odoo-default'
+        country = (self.country_code or 'US').upper()[:2]
+
+        try:
+            client.put(
+                f'/sell/inventory/v1/location/{location_key}',
+                {
+                    'location': {
+                        'address': {
+                            'country': country,
+                        },
+                    },
+                    'merchantLocationStatus': 'ENABLED',
+                    'name': 'Odoo Default Location',
+                },
+            )
+            return location_key
+        except Exception as exc:
+            _logger.warning(
+                "eBay: could not upsert merchant location '%s' for instance '%s': %s",
+                location_key, self.name, exc,
+            )
+
+        # Fallback: list existing locations and use the first enabled one
+        try:
+            resp = client.get('/sell/inventory/v1/location')
+            for loc in resp.get('locations', []):
+                if loc.get('merchantLocationStatus') == 'ENABLED':
+                    return loc['merchantLocationKey']
+        except Exception:
+            pass
+
+        return None
 
     # ------------------------------------------------------------------
     # Connection test
