@@ -315,15 +315,46 @@ class EbayListingMixin(models.Model):
                        headers=lang_headers)
             offer_id = self.offer_id
         else:
-            resp     = client.post('/sell/inventory/v1/offer', offer_payload,
-                                   headers=lang_headers)
-            offer_id = resp.get('offerId', '')
-            if not offer_id:
-                raise UserError(
-                    _("eBay did not return an offerId for SKU '%s'. "
-                      "Check that your policy IDs and category ID are correct.")
-                    % sku
-                )
+            try:
+                resp     = client.post('/sell/inventory/v1/offer', offer_payload,
+                                       headers=lang_headers)
+                offer_id = resp.get('offerId', '')
+                if not offer_id:
+                    raise UserError(
+                        _("eBay did not return an offerId for SKU '%s'. "
+                          "Check that your policy IDs and category ID are correct.")
+                        % sku
+                    )
+            except UserError:
+                raise
+            except Exception as exc:
+                # eBay returns errorId 25002 "Offer entity already exists" when
+                # the offer was created outside Odoo (or a previous publish left
+                # no offer_id on the record).  Extract the offerId from the error
+                # parameters and fall back to PUT so the existing offer is reused.
+                exc_str = str(exc)
+                offer_id = ''
+                if 'Offer entity already exists' in exc_str or (
+                    'errorId 25002' in exc_str and 'offerId' in exc_str
+                ):
+                    # Error format: "... [offerId=11033068010]"
+                    try:
+                        offer_id = exc_str.split('offerId=')[1].split(']')[0].strip()
+                    except (IndexError, ValueError):
+                        pass
+
+                if offer_id:
+                    _logger.info(
+                        "eBay: offer %s already exists for SKU '%s' — "
+                        "updating via PUT and saving offer_id.",
+                        offer_id, sku,
+                    )
+                    client.put(f'/sell/inventory/v1/offer/{offer_id}', offer_payload,
+                               headers=lang_headers)
+                    # Persist the offer_id now so future calls skip POST entirely
+                    self.sudo().write({'offer_id': offer_id})
+                else:
+                    raise
 
         # ------ Step 3: Publish ------------------------------------------
         pub_resp   = client.post(
