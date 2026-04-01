@@ -34,6 +34,14 @@ _logger = logging.getLogger(__name__)
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
+    def write(self, vals):
+        result = super(ProductTemplate, self).write(vals)
+        trigger_fields = {'name', 'list_price', 'description_sale', 'image_1920'}
+        if any(field in vals for field in trigger_fields):
+            for template in self:
+                template.product_variant_ids._trigger_ebay_sync()
+        return result
+
     ebay_listing_count = fields.Integer(
         string='eBay Listings',
         compute='_compute_ebay_listing_count',
@@ -77,6 +85,34 @@ class ProductTemplate(models.Model):
 
 class ProductProduct(models.Model):
     _inherit = 'product.product'
+
+    def write(self, vals):
+        result = super(ProductProduct, self).write(vals)
+        trigger_fields = {'name', 'list_price', 'description_sale', 'image_1920'}
+        if any(field in vals for field in trigger_fields):
+            self._trigger_ebay_sync()
+        return result
+
+    def _trigger_ebay_sync(self):
+        """
+        Triggers an immediate update to eBay for the given products, bypassing the queue.
+        Used for updating listing details when product fields change.
+        """
+        mappings = self.env['ebay.product.mapping'].search([
+            ('odoo_product_id', 'in', self.ids),
+            ('sync_inventory', '=', True),
+            ('active', '=', True),
+            ('listing_status', 'in', ['active', 'out_of_stock']),
+        ])
+        if mappings:
+            for mapping in mappings:
+                try:
+                    mapping.with_context(ebay_no_raise=True).action_update_ebay_listing()
+                except Exception:
+                    _logger.exception(
+                        "Failed to update eBay listing for mapping %s during product save",
+                        mapping.id
+                    )
 
     def _push_inventory_to_ebay(self):
         """

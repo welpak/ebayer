@@ -230,6 +230,7 @@ class EbayApiClient:
             'Authorization': f"Bearer {token}",
             'Content-Type':  'application/json',
             'Accept':        'application/json',
+            'Content-Language': 'en-US',
             'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
         }
         headers.update(extra_headers)
