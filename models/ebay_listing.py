@@ -259,6 +259,7 @@ class EbayListingMixin(models.Model):
             'sku':           sku,
             'marketplaceId': self.marketplace_id or 'EBAY_US',
             'format':        'FIXED_PRICE',
+            'availableQuantity': qty,
             'pricingSummary': {
                 'price': {
                     'value':    str(round(price, 2)),
@@ -400,6 +401,7 @@ class EbayListingMixin(models.Model):
         price         = self.ebay_price or (product.list_price if product else 0.0) or 0.0
 
         offer_payload = {
+            'availableQuantity': qty,
             'pricingSummary': {
                 'price': {'value': str(round(price, 2)), 'currency': currency_code},
             },
