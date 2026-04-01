@@ -244,11 +244,37 @@ class EbayApiClient:
                 body = resp.json()
             except Exception:
                 body = {'raw': resp.text[:500]}
+
             _logger.error(
                 "eBay API error %s %s → HTTP %s: %s",
-                method, path, resp.status_code, json.dumps(body)[:500],
+                method, path, resp.status_code, json.dumps(body)[:1000],
             )
-            resp.raise_for_status()
+
+            # Build a human-readable message from eBay's structured error response
+            ebay_msgs = []
+            for err in body.get('errors', [])[:5]:
+                msg  = err.get('longMessage') or err.get('message') or ''
+                params = err.get('parameters', [])
+                if params:
+                    param_str = ', '.join(
+                        f"{p.get('name')}={p.get('value')}" for p in params
+                    )
+                    msg = f"{msg} [{param_str}]"
+                if msg:
+                    ebay_msgs.append(f"errorId {err.get('errorId','?')}: {msg}")
+
+            if not ebay_msgs:
+                raw = body.get('message') or body.get('raw') or ''
+                if raw:
+                    ebay_msgs.append(str(raw)[:300])
+
+            detail = '\n'.join(ebay_msgs) if ebay_msgs else f"HTTP {resp.status_code}"
+
+            from requests.exceptions import HTTPError
+            raise HTTPError(
+                f"HTTP {resp.status_code} {method} {path}:\n{detail}",
+                response=resp,
+            )
 
         if resp.status_code == 204 or not resp.content:
             return {}
