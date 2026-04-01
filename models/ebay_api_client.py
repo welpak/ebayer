@@ -359,6 +359,12 @@ class EbayInstanceApiMethods(models.Model):
         help='eBay return policy ID applied to listings that do not specify '
              'their own.',
     )
+    merchant_location_key = fields.Char(
+        string='Merchant Location Key',
+        default='default',
+        help='eBay inventory location key for your warehouse. Typically "default". '
+             'Required to publish offers to eBay.',
+    )
 
     # ------------------------------------------------------------------
     # Order-export fields (Phase 4)

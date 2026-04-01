@@ -260,6 +260,7 @@ class EbayListingMixin(models.Model):
             'marketplaceId': self.marketplace_id or 'EBAY_US',
             'format':        'FIXED_PRICE',
             'availableQuantity': qty,
+            'merchantLocationKey': instance.merchant_location_key or 'default',
             'pricingSummary': {
                 'price': {
                     'value':    str(round(price, 2)),
@@ -402,6 +403,7 @@ class EbayListingMixin(models.Model):
 
         offer_payload = {
             'availableQuantity': qty,
+            'merchantLocationKey': instance.merchant_location_key or 'default',
             'pricingSummary': {
                 'price': {'value': str(round(price, 2)), 'currency': currency_code},
             },

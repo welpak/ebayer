@@ -134,6 +134,8 @@
                                                placeholder="Policy ID from Seller Hub"/>
                                         <field name="default_return_policy_id"
                                                placeholder="Policy ID from Seller Hub"/>
+                                        <field name="merchant_location_key"
+                                               placeholder="e.g. default"/>
                                     </group>
                                     <group string="About Listing Defaults">
                                         <div class="o_field_widget">
