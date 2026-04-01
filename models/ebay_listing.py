@@ -231,13 +231,19 @@ class EbayListingMixin(models.Model):
         ).qty_available))
 
         # ------ Step 1: PUT inventory_item --------------------------------
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+        product_payload = {
+            'title':       title,
+            'description': description,
+        }
+        if product.image_1920:
+            image_url = f"{base_url}/web/image/product.product/{product.id}/image_1920"
+            product_payload['imageUrls'] = [image_url]
+
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
             {
-                'product': {
-                    'title':       title,
-                    'description': description,
-                },
+                'product': product_payload,
                 'condition': condition,
                 'availability': {
                     'shipToLocationAvailability': {'quantity': qty},
@@ -253,6 +259,8 @@ class EbayListingMixin(models.Model):
             'sku':           sku,
             'marketplaceId': self.marketplace_id or 'EBAY_US',
             'format':        'FIXED_PRICE',
+            'availableQuantity': qty,
+            'merchantLocationKey': instance.merchant_location_key or 'default',
             'pricingSummary': {
                 'price': {
                     'value':    str(round(price, 2)),
@@ -317,16 +325,24 @@ class EbayListingMixin(models.Model):
         """
         for mapping in self:
             if not mapping.offer_id:
+                if self.env.context.get('ebay_no_raise'):
+                    continue
                 raise UserError(
                     _("'%s' has no eBay Offer ID — publish to eBay first.")
                     % mapping.display_name
                 )
             try:
                 mapping._update_single()
-            except UserError:
+            except UserError as e:
+                if self.env.context.get('ebay_no_raise'):
+                    _logger.warning("eBay UserError suppressed during instant sync: %s", e)
+                    continue
                 raise
             except Exception as exc:
                 mapping.sudo().write({'sync_error_message': str(exc)[:500]})
+                if self.env.context.get('ebay_no_raise'):
+                    _logger.error("eBay Exception suppressed during instant sync: %s", exc)
+                    continue
                 raise UserError(
                     _("eBay update failed for '%s':\n%s")
                     % (mapping.display_name, exc)
@@ -362,10 +378,19 @@ class EbayListingMixin(models.Model):
             warehouse=instance.warehouse_id.id if instance.warehouse_id else False
         ).qty_available)) if product else 0
 
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+        product_payload = {
+            'title':       title,
+            'description': description,
+        }
+        if product and product.image_1920:
+            image_url = f"{base_url}/web/image/product.product/{product.id}/image_1920"
+            product_payload['imageUrls'] = [image_url]
+
         client.put(
             f'/sell/inventory/v1/inventory_item/{sku}',
             {
-                'product':   {'title': title, 'description': description},
+                'product':   product_payload,
                 'condition': condition,
                 'availability': {
                     'shipToLocationAvailability': {'quantity': qty},
@@ -377,6 +402,8 @@ class EbayListingMixin(models.Model):
         price         = self.ebay_price or (product.list_price if product else 0.0) or 0.0
 
         offer_payload = {
+            'availableQuantity': qty,
+            'merchantLocationKey': instance.merchant_location_key or 'default',
             'pricingSummary': {
                 'price': {'value': str(round(price, 2)), 'currency': currency_code},
             },

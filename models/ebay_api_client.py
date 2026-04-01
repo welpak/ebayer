@@ -230,6 +230,7 @@ class EbayApiClient:
             'Authorization': f"Bearer {token}",
             'Content-Type':  'application/json',
             'Accept':        'application/json',
+            'Content-Language': 'en-US',
             'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
         }
         headers.update(extra_headers)
@@ -357,6 +358,12 @@ class EbayInstanceApiMethods(models.Model):
         string='Default Return Policy ID',
         help='eBay return policy ID applied to listings that do not specify '
              'their own.',
+    )
+    merchant_location_key = fields.Char(
+        string='Merchant Location Key',
+        default='default',
+        help='eBay inventory location key for your warehouse. Typically "default". '
+             'Required to publish offers to eBay.',
     )
 
     # ------------------------------------------------------------------
